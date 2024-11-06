@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title></title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .hidden { display: none; }
+        .fade-in { opacity: 0; transition: opacity 0.5s ease-in; }
+        .fade-in.show { opacity: 1; }
+        .navbar { position: fixed; top: 0; left: 0; right: 0; z-index: 10; }
+        .content { margin-top: 4rem; }
+        .quiz-box { margin-bottom: 2rem; }
+        .option {
+            transition: background-color 0.3s ease;
+        }
+        .option:hover {
+            background-color: #E0E7FF;
+        }
+        .option.selected {
+            background-color: #5468FF;
+            color: white;
+        }
+        .bg-color{
+          background:#F3F5F9;
+        }
+    </style>
+</head>
+<body class="bg-color text-gray-900">
+
+<div class="navbar bg-white p-4">
+    <div class="flex items-center justify-between">
+        <button id="backButton" class="text-indigo-600 hidden" aria-label="Go back">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+        </button>
+        <h1 id="navTitle" class="text-xl font-bold flex-grow text-center"></h1>
+        <div id="timer" class="bg-red-600 text-white px-4 py-1 rounded-lg hidden" aria-live="assertive">left</div>
+    </div>
+</div>
+
+<div class="content max-w-3xl mx-auto p-4">
+    <div id="contentDisplay" class="hidden space-y-4"></div>
+    <div id="itemList" class="space-y-4"></div>
+</div>
+
+<script>
+(function() {
+    const backButton = document.getElementById("backButton");
+    const navTitle = document.getElementById("navTitle");
+    const itemList = document.getElementById("itemList");
+    const contentDisplay = document.getElementById("contentDisplay");
+    const timerDisplay = document.getElementById("timer");
+
+    let currentView = "items";
+    let selectedAnswers = [];
+    let timer;
+    let timeLeft = 0;
+    let startTime;
+    let currentQuizItem;
+
+    const items = [
+        {
+            "id": "1",
+            "title": "ভূমিকা ও কোষ প্রাচীর",
+            "progress": getProgressFromLocalStorage("1") || 0,
+            "quiz": [
+                {
+                    "question": "1.কে কোষ আবিষ্কার করেন?",
+                    "options": ["ক.রবার্ট হুক", "খ.রবার্ট ডারউইন", "গ.রবার্ট ব্রাউন", "ঘ.লিউয়েন হুক"],
+                    "correctAnswer": "ক.রবার্ট হুক"
+                },
+                {
+                    "question": "2.কে কোষ বিভাজন আবিষ্কার করেন?",
+                    "options": ["ক.ফ্লেমিং", "খ.বোভেরী", "গ.স্ট্রাসবার্জার", "ঘ.শ্লাইখার"],
+                    "correctAnswer": "ক.ফ্লেমিং"
+                },
+                 {
+                    "question": "2.কে কোষ বিভাজন আবিষ্কার করেন?",
+                    "options": ["ক.ফ্লেমিং", "খ.বোভেরী", "গ.স্ট্রাসবার্জার", "ঘ.শ্লাইখার"],
+                    "correctAnswer": "ক.ফ্লেমিং"
+                }
+            ]
+        },
+        {
+            "id": "2",
+            "title": "কোষের শারীরিক গঠন",
+            "progress": getProgressFromLocalStorage("2") || 0,
+            "quiz": [
+                {
+                    "question": "1.অ্যামাইনের প্রধান কার্য কি?",
+                    "options": ["ক.পুষ্টি", "খ.স্রাব", "গ.প্রতিক্রিয়া", "ঘ.শ্বাস"],
+                    "correctAnswer": "ক.পুষ্টি"
+                },
+                {
+                    "question": "2.জীবিত কোষের গঠন কি?",
+                    "options": ["ক.এককোষী", "খ.মাল্টিসেলুলার", "গ.দ্বি-স্তরবিশিষ্ট", "ঘ.অ্যামিফিবিয়"],
+                    "correctAnswer": "খ.মাল্টিসেলুলার"
+                }
+            ]
+        }
+    ];
+
+    renderItems(items);
+
+    function getProgressFromLocalStorage(id) {
+        return JSON.parse(localStorage.getItem(`item_progress_${id}`));
+    }
+
+    function setProgressToLocalStorage(id, progress) {
+        localStorage.setItem(`item_progress_${id}`, JSON.stringify(progress));
+    }
+
+    function renderItems(items) {
+        itemList.innerHTML = "";
+        currentView = "items";
+        navTitle.textContent = "কোষ ও এর গঠন মডেল টেস্ট";
+        backButton.classList.add("hidden");
+        contentDisplay.classList.add("hidden");
+        timerDisplay.classList.add("hidden");
+
+        items.forEach((item, index) => {
+            const itemDiv = document.createElement("div");
+            itemDiv.classList.add("flex", "items-center", "justify-between", "p-4", "rounded-lg", "bg-white", "hover:bg-indigo-100", "cursor-pointer", "fade-in");
+
+// lock unlock value
+            // Check if the item is locked
+            const isLocked = index > 0 && items[index - 1].progress < 40;
+
+            // Progress Circle Container
+            const progressContainer = document.createElement("div");
+            progressContainer.classList.add("relative", "flex", "items-center", "justify-center", "w-12", "h-12", "rounded-full", "bg-indigo-500", "text-white", "mr-4");
+
+            // Determine progress value
+            const progressValue = isLocked ? 0 : Math.floor(item.progress);
+            const progressText = document.createElement("span");
+            progressText.classList.add("absolute", "font-bold", "text-md");
+            progressText.textContent = isLocked ? "" : `${progressValue}%`; // Show percentage only if unlocked
+
+            // Create circular background and progress circle
+            const circumference = 100;
+            const offset = circumference - progressValue;
+            progressContainer.innerHTML = `
+                <svg width="60" height="60" class="transform -rotate-90">
+                    <circle cx="30" cy="30" r="28" fill="none" stroke-width="4" class="text-gray-300" />
+                    <circle cx="30" cy="30" r="28" fill="none" stroke-width="4" class="${isLocked ? 'text-gray-400' : 'text-indigo-600'}" stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" />
+                </svg>
+                ${isLocked ? `<span class="absolute text-white text-lg">🔒</span>` : ''}
+            `;
+            progressContainer.appendChild(progressText);
+
+            // Title Section
+            const title = document.createElement("div");
+            title.classList.add("flex-grow", "ml-4", "font-semibold", "text-lg", "text-gray-800");
+            title.textContent = item.title;
+
+            // Arrow Icon
+            const arrow = document.createElement("div");
+            arrow.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14m-7-7l7 7-7 7" />
+                </svg>
+            `;
+
+            // Append elements
+            itemDiv.appendChild(progressContainer);
+            itemDiv.appendChild(title);
+            itemDiv.appendChild(arrow);
+            itemList.appendChild(itemDiv);
+
+            // Add click event only for unlocked items
+            if (!isLocked) {
+                itemDiv.addEventListener("click", () => {
+                    showQuiz(item.quiz, item);
+                });
+            } else {
+                itemDiv.classList.add("opacity-50"); // Make locked items appear faded
+                itemDiv.addEventListener("click", () => {
+                    showToast("অনুগ্রহ করে পূর্ববর্তী মডেল টেস্ট ৪০% সম্পূর্ণ করুন।");
+                });
+            }
+        });
+
+        setTimeout(() => {
+            itemList.querySelectorAll('.fade-in').forEach(el => el.classList.add('show'));
+        }, 10);
+    }
+
+    function showToast(message) {
+        const toast = document.createElement("div");
+        toast.classList.add("fixed", "bottom-5","w-2/3", "left-1/2", "transform", "-translate-x-1/2", "bg-indigo-600", "text-white", "px-4", "py-2", "rounded-lg", "shadow-lg", "opacity-100", "transition-opacity", "duration-300", "ease-in-out");
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.remove("opacity-100");
+            toast.classList.add("opacity-0");
+            setTimeout(() => {
+                toast.remove();
+            }, 300); // Time to wait before removing the toast
+        }, 2000); // Duration the toast is visible
+    }
+
+    function showQuiz(quizArray, item) {
+        currentView = "quiz";
+        itemList.innerHTML = "";
+        navTitle.textContent = "Exam Time!";
+        contentDisplay.classList.remove("hidden");
+        timerDisplay.classList.remove("hidden");
+
+        timeLeft = quizArray.length * 60;
+        timerDisplay.textContent = formatTime(timeLeft);
+        contentDisplay.innerHTML = renderQuizContent(quizArray);
+        backButton.classList.remove("hidden");
+        selectedAnswers = new Array(quizArray.length).fill(null);
+        startTimer();
+        currentQuizItem = item;
+
+        startTime = Date.now();
+
+        history.pushState({ view: "quiz" }, "Quiz", "");
+    }
+
+    function renderQuizContent(quizArray) {
+        let htmlContent = `<div class="quiz-box"><div id="quizForm">`;
+
+        quizArray.forEach((question, index) => {
+            htmlContent += `
+                <div class="rounded-lg p-6 bg-white question mb-4">
+                    <h2 class="text-md font-bold mb-2">${question.question}</h2>
+                    <div class="options space-y-2">`;
+            question.options.forEach(option => {
+                htmlContent += `
+                    <button class="option w-full text-left p-2 rounded bg-gray-100 hover:bg-gray-200" onclick="selectOption(this, '${question.correctAnswer}', ${index})">
+                        ${option}
+                    </button>`;
+            });
+            htmlContent += `
+                    </div>
+                </div>`;
+        });
+
+        htmlContent += `
+            <button type="button" class="w-full px-4 py-3 bg-indigo-600 text-white rounded hover:bg-indigo-700" onclick="submitQuiz()">Submit Answers</button>
+        </div>
+    </div>`;
+
+        return htmlContent;
+    }
+
+    function startTimer() {
+        timer = setInterval(() => {
+            timeLeft--;
+            timerDisplay.textContent = formatTime(timeLeft);
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                alert("Time's up!");
+                submitQuiz();
+            }
+        }, 1000);
+    }
+
+    function formatTime(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${minutes < 10 ? '0' : ''}${minutes}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+
+    window.selectOption = function(button, correctAnswer, questionIndex) {
+        const questionDiv = button.closest('.question');
+        const selectedOption = questionDiv.querySelectorAll('.option');
+        selectedOption.forEach(option => {
+            option.classList.remove('selected');
+        });
+        button.classList.add('selected');
+        selectedAnswers[questionIndex] = button.textContent.trim();
+    };
+
+    window.submitQuiz = function() {
+        clearInterval(timer);
+        const endTime = Date.now();
+        const timeTaken = Math.floor((endTime - startTime) / 1000);
+
+        const results = selectedAnswers.map((selected, index) => {
+            const question = currentQuizItem.quiz[index];
+            return {
+                question: question.question,
+                selected: selected,
+                correctAnswer: question.correctAnswer,
+            };
+        });
+
+        const correctCount = results.filter(result => result.selected === result.correctAnswer).length;
+        const incorrectCount = results.length - correctCount;
+        const totalMarks = correctCount - (incorrectCount * 0.25);
+        const progressPercentage = ((correctCount / results.length) * 100).toFixed(2);
+
+        if (currentQuizItem) {
+    // Store the progress percentage
+    const calculatedProgress = progressPercentage; // Use the calculated value for display
+    setProgressToLocalStorage(currentQuizItem.id, calculatedProgress);
+
+    // Update progress to unlock next item if 50% or more
+    if (calculatedProgress >= 50) {
+        // Set a separate property or flag to indicate the item is unlocked
+        currentQuizItem.isUnlocked = true; // You can use a separate flag if needed
+    }
+
+    // For display purposes, keep the actual progress as is
+    currentQuizItem.progress = calculatedProgress; // Store calculated progress for display
+    setProgressToLocalStorage(currentQuizItem.id, calculatedProgress);
+}
+
+        contentDisplay.innerHTML = `
+            <h2 class="text-2xl text-indigo-600 font-bold">Quiz Results</h2>
+            <div class="grid grid-cols-2 md:grid-cols-2 gap-4 mt-4">
+                <div class="bg-blue-100 p-4 rounded-lg"><h2 class="text-xl text-blue-600 font-bold">${results.length}</h2>Questions</div>
+                <div class="bg-yellow-100 p-4 rounded-lg"><h2 class="text-xl text-yellow-600 font-bold">${formatTime(timeTaken)}</h2>Time Taken</div>
+                <div class="bg-green-100 p-4 rounded-lg"><h2 class="text-xl text-green-600 font-bold">${correctCount}</h2>Correct</div>
+                 <div class="bg-purple-100 p-4 rounded-lg"><h2 class="text-xl text-purple-600 font-bold">${progressPercentage}%</h2>Progress</div>
+                <div class="bg-red-100 p-4 rounded-lg"><h2 class="text-xl text-red-600 font-bold">${incorrectCount}</h2>Incorrect</div>
+
+                <div class="bg-pink-100 p-4 rounded-lg"><h2 class="text-xl text-pink-600 font-bold">${totalMarks.toFixed(2)}</h2>Total Marks</div>
+            </div>
+            <h3 class="mt-6 text-lg font-semibold text-indigo-600">Review Your Answers:</h3>
+            <div class="mt-2 space-y-4">
+                ${results.map(result => `
+                    <div class="p-4 rounded-lg bg-white ">
+                        <p class="font-semibold">${result.question}</p>
+                        <p class="text-gray-700">Your Answer: ${result.selected || "No answer"}</p>
+                        <p class="text-gray-700">Correct Answer: ${result.correctAnswer}</p>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+
+        contentDisplay.classList.remove("hidden");
+        backButton.classList.remove("hidden");
+
+        const navbarHeight = document.querySelector('.navbar').offsetHeight;
+        const contentTop = contentDisplay.getBoundingClientRect().top + window.scrollY - navbarHeight;
+        window.scrollTo({ top: contentTop, behavior: 'smooth' });
+
+        history.pushState({ view: "results" }, "Results", "");
+    };
+
+    backButton.addEventListener("click", () => {
+        if (currentView === "quiz") {
+            resetQuizState();
+            renderItems(items);
+        } else if (currentView === "results") {
+            contentDisplay.classList.add("hidden");
+            itemList.classList.remove("hidden");
+            navTitle.textContent = "Item List";
+            backButton.classList.add("hidden");
+            currentView = "items";
+        }
+    });
+
+    window.addEventListener("popstate", (event) => {
+        if (event.state && event.state.view === "quiz") {
+            resetQuizState();
+            renderItems(items);
+        } else if (event.state && event.state.view === "results") {
+            contentDisplay.classList.add("hidden");
+            itemList.classList.remove("hidden");
+            navTitle.textContent = "Item List";
+            backButton.classList.add("hidden");
+            currentView = "items";
+        }
+    });
+
+    function resetQuizState() {
+        clearInterval(timer);
+        timeLeft = 0;
+        selectedAnswers = [];
+        timerDisplay.textContent = '';
+        contentDisplay.innerHTML = '';
+        currentQuizItem = null; // Reset the current quiz item
+    }
+})();
+</script>
+
+
+
+
+</body>
+</html>
